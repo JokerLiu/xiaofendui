@@ -15,13 +15,13 @@ logging.basicConfig(level=logging.INFO, format='\n%(asctime)s - %(levelname)s: %
 # 存储目录
 BASE_DIR = '/tmp'
 # 临时文件
-WEIBO_TMP_FILE = BASE_DIR + '/zk_monitor_%s.json'
+ZK_TMP_FILE = BASE_DIR + '/zk_monitor_%s.json'
 # 请求头
 REQUEST_HEADERS = {
 	'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.143 Safari/537.36'
 }
 # 爬虫链接
-BASE_URL = 'http://www.zuanke8.com/forum.php?mod=forumdisplay&fid=15&filter=author&orderby=dateline'
+ZK_BASE_URL = 'http://www.zuanke8.com/forum.php?mod=forumdisplay&fid=15&filter=author&orderby=dateline'
 # 编码
 UTF8_ENCODING = 'utf-8'
 GBK_ENCODING = 'gbk'
@@ -50,7 +50,7 @@ result = dict()
 
 def main_handler(event, context):
     global result
-    tmp_path = WEIBO_TMP_FILE % datetime.now().strftime('%Y%m%d')
+    tmp_path = ZK_TMP_FILE % datetime.now().strftime('%Y%m%d')
     try:
         logging.info('临时文件：' + tmp_path)
         if not os.path.exists(tmp_path):
@@ -61,9 +61,9 @@ def main_handler(event, context):
         logging.info('当前存储数据量：' + str(len(result.keys())))
 
         # 首页热门内容
-        d = py(BASE_URL, headers=REQUEST_HEADERS, encoding=GBK_ENCODING)
+        d = py(ZK_BASE_URL, headers=REQUEST_HEADERS, encoding=GBK_ENCODING)
         # 每个帖子
-        d('#threadlisttableid tbody').each(dealPost)
+        d('#threadlisttableid tbody').each(deal_post)
         return "Success"
     except Exception as ex:
         logging.error('主任务运行异常：' + str(ex))
@@ -114,7 +114,7 @@ def format_tofrom(obj):
 
 
 # 每个帖子
-def dealPost(i, e):
+def deal_post(i, e):
     global result
     match = re.match('normalthread_(\d+)', str(py(e).attr('id')))
     if match is None:
@@ -132,12 +132,12 @@ def dealPost(i, e):
     # 帖子地址
     url = py(e).find('th a').attr('href')
     # class="by"
-    byElement = py(e).find('td:eq(1)')
-    content = dealPostUrl(url)
+    time_ele = py(e).find('td:eq(1)')
+    content = get_post_content(url)
     result[post_id] = {
         'url': url, 
         'title': title, 
-        'time': byElement.find('em').text(), 
+        'time': time_ele.find('em').text(), 
         'content': content
     }
     logging.info('准备推送信息：' +  str(result[post_id]))
@@ -153,7 +153,7 @@ def dealPost(i, e):
 
 
 # 帖子链接内容
-def dealPostUrl(url):
+def get_post_content(url):
     d = py(url, headers=REQUEST_HEADERS, encoding=GBK_ENCODING)
     div = d('#postlist>div:first')
     tr = div.find('tr:first')
