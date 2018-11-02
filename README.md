@@ -19,11 +19,11 @@ SENDER = {
     'smtp': 'smtp.126.com',
     'pass': 'yourpass'
 }
-# 接受者
+# 接收者
 RECEIVERS = [
     {
         'name': 'username',
-        'email': 'youremail@qq.com',
+        'email': 'youremail@126.com',
     }
 ]
 ```
@@ -31,3 +31,7 @@ RECEIVERS = [
 ### 脚本使用
 Windows平台：使用前提pip install pyquery，可以配合系统计划任务执行脚本，要求Python3.5   
 无服务云函数：免费运行资源，打包zip部署至云环境，打包步骤请看[这里](https://cloud.tencent.com/document/product/583/9702)，要求Python3.6
+
+### 懒人微信群
+有机器人实时发布监控消息   
+![微信群](http://wx3.sinaimg.cn/bmiddle/800facaagy1fwu4d5w4m6j20q011542v.jpg)
