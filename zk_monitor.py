@@ -1,4 +1,4 @@
-# -*- coding: utf8 -*-
+# -*- coding: utf-8 -*-
 import json
 import os
 import re
@@ -126,8 +126,8 @@ def deal_post(i, e):
         return
     # 帖子标题
     title = py(e).find('th').text()
-    if not re.match(r'.*(' + KEYWORD['include'] + ').*', title, re.I) \
-        or re.match(r'.*' + KEYWORD['exclude'] + '.*', title, re.I):
+    if re.match(r'.*(' + KEYWORD['include'] + ').*', title, re.I) is None \
+        or re.match(r'.*' + KEYWORD['exclude'] + '.*', title, re.I) is not None:
         return
     # 帖子地址
     url = py(e).find('th a').attr('href')
