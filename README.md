@@ -34,4 +34,4 @@ Windows平台：使用前提pip install pyquery，可以配合系统计划任务
 
 ### 懒人微信群
 有机器人实时发布监控消息   
-![微信群](http://wx3.sinaimg.cn/bmiddle/800facaagy1fwu4d5w4m6j20q011542v.jpg)
+![微信群](http://wx2.sinaimg.cn/bmiddle/800facaagy1fx30ovkmpuj20q0114mzo.jpg)
