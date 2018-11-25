@@ -6,6 +6,7 @@ import time
 import logging
 import itchat
 import random
+import requests
 from pyquery import PyQuery as py
 from datetime import datetime
 
@@ -29,8 +30,8 @@ UTF8_ENCODING = 'utf-8'
 GBK_ENCODING = 'gbk'
 # 监控关键字
 KEYWORD = {
-    'include': '密令|红包|洪水|大水|有水|速度|神券|京豆',
-    'exclude': '权限|水贴'
+    'include': r'密令|红包|洪水|大水|有水|速度|神券|京豆|好价',
+    'exclude': r'权限|水.?贴|怎么|不能|没有|啥|问|哪|吗|么|？|\?'
 }
 # 匹配群聊名称
 MATCH_ROOMS = ['双11小分队']
@@ -41,7 +42,7 @@ last_result = dict()
 user_names = list()
 
 
-def main_handler(event, context):
+def main_handler():
     global result, last_result
     try:
         logging.info('临时文件：' + ZK_TMP_FILE)
@@ -58,7 +59,7 @@ def main_handler(event, context):
         d('#threadlisttableid tbody').each(deal_post)
         return "Success"
     except Exception as ex:
-        logging.error('主任务运行异常：' + str(ex))
+        logging.exception('主任务运行异常：' + str(ex))
         raise ex
     finally:
         # 创建存储目录
@@ -67,13 +68,12 @@ def main_handler(event, context):
         # 存储结果
         with open(ZK_TMP_FILE, 'w', encoding=UTF8_ENCODING) as f:
             # 超过数量清空
-            if len(result.keys()) > 1500:
-                result.clear()
-                result = last_result
+            if len(result.keys()) > 500:
+                last_result.clear()
+                last_result = result
+                result = dict()
             logging.info('保存数据结果')
             json.dump(result, f)
-            last_result.clear()
-
 
 # 每个帖子
 def deal_post(i, e):
@@ -84,43 +84,87 @@ def deal_post(i, e):
     # 帖子主键
     post_id = match.group(1)
     # 已存在
-    if result.get(post_id) is not None:
+    if result.get(post_id) is not None or last_result.get(post_id) is not None:
         return
     # 帖子标题
     title = py(e).find('th').text()
-    if re.match(r'.*(' + KEYWORD['include'] + ').*', title, re.I) is None \
-        or re.match(r'.*' + KEYWORD['exclude'] + '.*', title, re.I) is not None:
+    if not is_keyword_valid(title):
         return
-    # 帖子地址
-    # url = py(e).find('th a').attr('href')
-    url = ZK_POST_URL % post_id
-    # class="by"
-    time_ele = py(e).find('td:eq(1)')
-    content = get_post_content(url)
-    info =  {
-        'url': url, 
-        'title': title, 
-        'time': time_ele.find('em').text(), 
-        'content': content
-    }
+    # 帖子时间
+    time = py(e).find('td:eq(1)').find('em').text()
+    info = get_post_info(post_id, title=title, time=time)
     result[post_id] = info
-    last_result[post_id] = info
-    logging.info('准备推送信息：' +  str(result[post_id]))
-    content = '%s\n\n%s\n\n电脑版：%s' % (result[post_id]['title'], result[post_id]['content'], result[post_id]['url'])
+    # 内容关键字判断
+    if not is_keyword_valid(info['content'], 'content'):
+        logging.info('内容关键字过滤：' + str(info))
+        return
+    logging.info('准备推送信息：' + str(info))
+    send_msg(info)
+    
+# 判断是否符合关键字
+def is_keyword_valid(text, check_type='title'):
+    if check_type == 'title':
+        if len(re.findall(KEYWORD['include'], text, re.I)) == 0 \
+            or len(re.findall(KEYWORD['exclude'], text, re.I)) > 0:
+            return False
+        else:
+            return True
+    else:
+        return False if len(re.findall(KEYWORD['exclude'], text, re.I)) > 0 else True
+
+# 发送消息
+def send_msg(info):
     # 推送用户名单
     global user_names
+    files = list()
+    content = '%s\n\n%s\n\n电脑版：%s' % (info['title'], info['content'], info['url'])
     for name in user_names:
         itchat.send_msg(content, toUserName=name)
+        # 发送图片
+        for url in info['images']:
+            path = os.path.join(BASE_DIR, os.path.basename(url))
+            files.append(path)
+            f = open(path, 'wb')
+            f.write(requests.get(url).content)
+            f.close()
+            itchat.send_image(path, toUserName=name)
         time.sleep(random.randint(2, 5))
+    # 删除临时文件
+    for path in files:
+        if os.path.exists(path):
+            os.remove(path)
 
-
-# 帖子链接内容
-def get_post_content(url):
-    d = py(url, headers=REQUEST_HEADERS, encoding=GBK_ENCODING)
-    div = d('#postlist>div:first')
-    tr = div.find('tr:first')
-    content = tr.find('.t_f').text()
-    return content
+# 获取帖子链接内容
+def get_post_info(post_id, title=None, time=None):
+    info = dict()
+    info['url'] = ZK_POST_URL % post_id
+    logging.info('爬取链接：' + info['url'])
+    d = py(info['url'], headers=REQUEST_HEADERS, encoding=GBK_ENCODING)
+    # 帖子标题
+    post_title = d('#thread_subject').attr('title')
+    # 帖子时间
+    post_time = d('.pti:first>.authi:first').find('em:first').text().replace('发表于 ', '')
+    # 帖子图片
+    info['images'] = list()
+    if post_title is None:
+        info['title'] = None if title is None else title
+        info['time'] = None if time is None else time
+        info['content'] = d('#messagetext>p:first').text()
+    else:
+        info['title'] = post_title
+        info['time'] = post_time
+        ele = d('#postlist>div:first').find('tr:first').find('.t_f')
+        info['content'] = '' if ele is None else py(ele.html()).remove('ignore_js_op').text()
+        imgs = d('.t_fsz:first').find('ignore_js_op').find('img')
+        for e in imgs:
+            e = py(e)
+            if e.attr('aid') is None:
+                continue
+            src = e.attr('file')
+            if len(re.findall('.jpg|.jpeg|.png', src, re.I)) == 0:
+                continue
+            info['images'].append(src)
+    return info
 
 
 if __name__ == '__main__':
@@ -136,9 +180,9 @@ if __name__ == '__main__':
     # 定时循环
     while True:
         try:
-            main_handler(None, None)
+            main_handler()
         except Exception as ex:
-            logging.error('主线程异常：' + str(ex))
+            logging.exception('主线程异常：' + str(ex))
         time.sleep(ZK_TASK_INTERVAL)
     # 退出登录
     itchat.logout()
