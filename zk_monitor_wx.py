@@ -23,15 +23,17 @@ REQUEST_HEADERS = {
 # 爬虫链接
 ZK_BASE_URL = 'http://www.zuanke8.com/forum.php?mod=forumdisplay&fid=15&filter=author&orderby=dateline'
 ZK_POST_URL = 'http://www.zuanke8.com/thread-%s-1-1.html'
+TUAN_BASE_URL = 'http://www.0818tuan.com/list-1-0.html'
 # 任务间隔时间
 ZK_TASK_INTERVAL = 30
 # 编码
 UTF8_ENCODING = 'utf-8'
 GBK_ENCODING = 'gbk'
+GB2312_ENCODING = 'gb2312'
 # 监控关键字
 KEYWORD = {
-    'include': r'密令|红包|洪水|大水|有水|速度|神券|京豆|好价',
-    'exclude': r'权限|水.?贴|怎么|不能|没有|啥|问|哪|吗|么|？|\?'
+    'include': r'密令|红包|洪水|大水|有水|速度|神券|京豆|好价|bug|\d+元|\d+券|\d+减\d+|\d+-\d+',
+    'exclude': r'权限|水.?贴|什么|怎么|怎样|不能|不行|没有|反撸|求|啥|问|哪|吗|么|？|\?'
 }
 # 匹配群聊名称
 MATCH_ROOMS = ['双11小分队']
@@ -52,12 +54,12 @@ def main_handler():
             with open(ZK_TMP_FILE, 'r', encoding=UTF8_ENCODING) as f:
                 result = json.load(f)
         logging.info('当前存储数据量：' + str(len(result.keys())))
-
-        # 首页热门内容
+        # zk首页热门内容
         d = py(ZK_BASE_URL, headers=REQUEST_HEADERS, encoding=GBK_ENCODING)
-        # 每个帖子
         d('#threadlisttableid tbody').each(deal_post)
-        return "Success"
+        # 0818tuan
+        d = py(TUAN_BASE_URL, headers=REQUEST_HEADERS, encoding=GB2312_ENCODING)
+        d('.list-group > .list-group-item').each(deal_post_tuan)
     except Exception as ex:
         logging.exception('主任务运行异常：' + str(ex))
         raise ex
@@ -77,14 +79,14 @@ def main_handler():
 
 # 每个帖子
 def deal_post(i, e):
-    global result, last_result
+    global result
     match = re.match(r'normalthread_(\d+)', str(py(e).attr('id')))
     if match is None:
         return
     # 帖子主键
     post_id = match.group(1)
     # 已存在
-    if result.get(post_id) is not None or last_result.get(post_id) is not None:
+    if is_result_include(post_id):
         return
     # 帖子标题
     title = py(e).find('th').text()
@@ -100,7 +102,50 @@ def deal_post(i, e):
         return
     logging.info('准备推送信息：' + str(info))
     send_msg(info)
-    
+
+def deal_post_tuan(i, e):
+    global result
+    info = dict()
+    info['title'] = py(e).attr('title')
+    url = py(e).attr('href')
+    info['time'] = py(e).find('.badge-success').text()
+    info['images'] = list()
+    # 排除置顶
+    if info['title'] is None or info['time'] == '':
+        return
+    # 排除非权限贴以及标题非关键字
+    if len(re.findall(r'\[权\d*\]', info['title'])) == 0 \
+        or not is_keyword_valid(info['title']) \
+        or is_result_include(url):
+        return
+    info['url'] = os.path.dirname(TUAN_BASE_URL) + url
+    logging.info('爬取链接：' + info['url'])
+    d = py(info['url'], headers=REQUEST_HEADERS, encoding=GB2312_ENCODING)
+    # 区块元素
+    ele = d('.post-content>p:first').clone()
+    for img in ele.find('img'):
+        src = py(img).attr('src')
+        if len(re.findall('.jpg|.jpeg|.png', src, re.I)) == 0:
+            continue
+        info['images'].append(src)
+    info['content'] = py(re.sub(r'(<br/>\n?)+', '\n', ele.remove('img').html())).text()
+    result[url] = info
+    # 内容非关键字
+    if not is_keyword_valid(info['content'], 'content'):
+        logging.info('内容关键字过滤：' + str(info))
+        return
+    logging.info('准备推送信息：' + str(info))
+    send_msg(info)
+
+# 判读结果是否包含
+def is_result_include(key):
+    global result, last_result
+    # 已存在
+    if result.get(key) is not None or last_result.get(key) is not None:
+        return True
+    else:
+        return False
+
 # 判断是否符合关键字
 def is_keyword_valid(text, check_type='title'):
     if check_type == 'title':
@@ -155,8 +200,7 @@ def get_post_info(post_id, title=None, time=None):
         info['time'] = post_time
         ele = d('#postlist>div:first').find('tr:first').find('.t_f')
         info['content'] = '' if ele is None else py(ele.html()).remove('ignore_js_op').text()
-        imgs = d('.t_fsz:first').find('ignore_js_op').find('img')
-        for e in imgs:
+        for e in d('.t_fsz:first').find('ignore_js_op').find('img'):
             e = py(e)
             if e.attr('aid') is None:
                 continue
