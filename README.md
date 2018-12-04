@@ -44,4 +44,4 @@ zk论坛关键字监控，实时机器人提醒
 
 ### 三、懒人微信群
 有机器人实时发布监控消息   
-![微信群](http://wx2.sinaimg.cn/bmiddle/800facaagy1fxh4i9dvmzj20q0114ack.jpg)
+![微信群](http://wx3.sinaimg.cn/bmiddle/800facaagy1fxv0rzfsh3j20q0114mzp.jpg)
