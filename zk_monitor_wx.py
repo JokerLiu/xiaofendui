@@ -7,6 +7,7 @@ import logging
 import itchat
 import random
 import requests
+from urllib.parse import unquote
 from pyquery import PyQuery as py
 from datetime import datetime
 
@@ -33,10 +34,10 @@ GB2312_ENCODING = 'gb2312'
 # 监控关键字
 KEYWORD = {
     'include': r'密令|红包|洪水|大水|有水|速度|神券|京豆|好价|bug|\d+元|\d+券|\d+减\d+|\d+-\d+',
-    'exclude': r'权限|水.?贴|什么|怎么|怎样|不能|不行|没有|反撸|求|啥|问|哪|吗|么|？|\?'
+    'exclude': r'权限|水.?贴|什么|怎么|怎样|不是|不能|不行|没有|反撸|求|啥|问|哪|吗|么|？'
 }
 # 匹配群聊名称
-MATCH_ROOMS = ['双11小分队']
+MATCH_ROOMS = ['冲鸭，羊毛小分队']
 # 全局存储数据
 result = dict()
 last_result = dict()
@@ -128,7 +129,10 @@ def deal_post_tuan(i, e):
         if len(re.findall('.jpg|.jpeg|.png', src, re.I)) == 0:
             continue
         info['images'].append(src)
-    info['content'] = py(re.sub(r'(<br/>\n?)+', '\n', ele.remove('img').html())).text()
+    info['content'] = py(re.sub(r'(<br/?>\s*\n?)+', '@#@', ele.remove('img').html())).text().replace('@#@', '\n')
+    mapping = get_url_mapping(ele)
+    for href in mapping:
+        info['content'] = info['content'].replace(href, mapping[href])
     result[url] = info
     # 内容非关键字
     if not is_keyword_valid(info['content'], 'content'):
@@ -198,8 +202,11 @@ def get_post_info(post_id, title=None, time=None):
     else:
         info['title'] = post_title
         info['time'] = post_time
-        ele = d('#postlist>div:first').find('tr:first').find('.t_f')
-        info['content'] = '' if ele is None else py(ele.html()).remove('ignore_js_op').text()
+        ele = d('#postlist>div:first').find('tr:first').find('.t_f').clone()
+        info['content'] = ele.remove('ignore_js_op').text()
+        mapping = get_url_mapping(ele)
+        for href in mapping:
+            info['content'] = info['content'].replace(href, mapping[href])
         for e in d('.t_fsz:first').find('ignore_js_op').find('img'):
             e = py(e)
             if e.attr('aid') is None:
@@ -210,13 +217,27 @@ def get_post_info(post_id, title=None, time=None):
             info['images'].append(src)
     return info
 
+# 获取要替换的链接
+def get_url_mapping(ele):
+    url_mapping = dict()
+    for i in ele.find('a'):
+        href = py(i).attr['href']
+        url = py(i).text()
+        if re.match(r'https?.+\.\..+|.*链接.*', url) is None \
+            or href is None:
+            continue
+        if '0818tuan' in href and '?u=' in href:
+            url_mapping[url] = unquote(href.split('?u=')[1])
+        else:
+            url_mapping[url] = unquote(href)
+    return url_mapping
+
 
 if __name__ == '__main__':
     logging.info('请扫描二维码登录')
     itchat.auto_login(hotReload=True, enableCmdQR=True)
     logging.info('登录成功')
     chatrooms = itchat.get_chatrooms(contactOnly=True)
-    global user_names
     for room in chatrooms:
         logging.info('获取群聊通讯：' + room['NickName'] + '|' + room['UserName'])
         if room['NickName'] in MATCH_ROOMS:
