@@ -43,5 +43,8 @@ zk论坛关键字监控，实时机器人提醒
     运行python zk_monitor_wx.py，微信扫描二维码登陆
 
 ### 三、懒人微信群
-有机器人实时发布监控消息   
+1. 有机器人实时发布监控消息   
 ![微信群](http://wx3.sinaimg.cn/bmiddle/800facaagy1fxv0rzfsh3j20q0114mzp.jpg)
+
+2. 微信群已满100人，可以加 **我是机器人** 拉你们进群  
+![我是机器人](http://wx3.sinaimg.cn/bmiddle/800facaagy1fy30smg9hrj20q00zkq5c.jpg)
