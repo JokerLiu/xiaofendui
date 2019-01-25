@@ -27,6 +27,8 @@ ZK_POST_URL = 'http://www.zuanke8.com/thread-%s-1-1.html'
 TUAN_BASE_URL = 'http://www.0818tuan.com/list-1-0.html'
 # 任务间隔时间
 ZK_TASK_INTERVAL = 30
+# 请求超时设置，默认5秒
+REQUEST_TIMEOUT = 5
 # 编码
 UTF8_ENCODING = 'utf-8'
 GBK_ENCODING = 'gbk'
@@ -56,10 +58,10 @@ def main_handler():
                 result = json.load(f)
         logging.info('当前存储数据量：' + str(len(result.keys())))
         # zk首页热门内容
-        d = py(ZK_BASE_URL, headers=REQUEST_HEADERS, encoding=GBK_ENCODING)
+        d = py(ZK_BASE_URL, headers=REQUEST_HEADERS, encoding=GBK_ENCODING, timeout=REQUEST_TIMEOUT)
         d('#threadlisttableid tbody').each(deal_post)
         # 0818tuan
-        d = py(TUAN_BASE_URL, headers=REQUEST_HEADERS, encoding=GB2312_ENCODING)
+        d = py(TUAN_BASE_URL, headers=REQUEST_HEADERS, encoding=GB2312_ENCODING, timeout=REQUEST_TIMEOUT)
         d('.list-group > .list-group-item').each(deal_post_tuan)
     except Exception as ex:
         logging.exception('主任务运行异常：' + str(ex))
@@ -121,7 +123,7 @@ def deal_post_tuan(i, e):
         return
     info['url'] = os.path.dirname(TUAN_BASE_URL) + url
     logging.info('爬取链接：' + info['url'])
-    d = py(info['url'], headers=REQUEST_HEADERS, encoding=GB2312_ENCODING)
+    d = py(info['url'], headers=REQUEST_HEADERS, encoding=GB2312_ENCODING, timeout=REQUEST_TIMEOUT)
     # 区块元素
     ele = d('.post-content>p:first').clone()
     for img in ele.find('img'):
@@ -188,7 +190,7 @@ def get_post_info(post_id, title=None, time=None):
     info = dict()
     info['url'] = ZK_POST_URL % post_id
     logging.info('爬取链接：' + info['url'])
-    d = py(info['url'], headers=REQUEST_HEADERS, encoding=GBK_ENCODING)
+    d = py(info['url'], headers=REQUEST_HEADERS, encoding=GBK_ENCODING, timeout=REQUEST_TIMEOUT)
     # 帖子标题
     post_title = d('#thread_subject').attr('title')
     # 帖子时间
